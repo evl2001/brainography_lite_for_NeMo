@@ -59,25 +59,60 @@ function brainography_nemo_lite_OpeningFcn(hObject, eventdata, handles, varargin
 handles.output = hObject;
 % setappdata(handles.output,'mainHandle',handles.output);
 fileIn = varargin{1};
-handles.ChaCoResults = fileIn.ChaCoResultsFile;
 
-startupStruct = setChaCoScene(handles, fileIn);
+colorMapOpts = {'autumn'; 'bone'; 'cool'; 'hot'; 'jet'; 'spring'; 'summer'; 'winter'};
+set(handles.popupmenu3,'String',colorMapOpts);
 
+[startupStruct, res] = setChaCoScene(handles, fileIn);
+startupStruct(1,2).mainHandle = hObject;
+if size(startupStruct,1) > 1
+    for i = 1:2
+        atlassize = startupStruct(i,1).numberROI;
+        savestr = ['renderStruct' num2str(atlassize)];
+        setappdata(hObject,savestr,startupStruct(i,:));
+    end
+end
 
-guidata(hObject, handles);
-setappdata(handles.output,'renderStruct',startupStruct);
+renderStruct = startupStruct(res,:);
 
-% Update handles structure
-% guidata(hObject, handles);
-% Reserve initial guidata with "Settings" for rendering that can later be
-% modified by the user and won't be deleted if the
-% guidata(hObject,struct('volString','Settings','brain_at',[],'renderRes',2,'currentVol',1,'saveImages',0,'saveMovie',0));
+populateGUI(handles, renderStruct);
 
+guidata(hObject, renderStruct);
 
+function populateGUI(H, popVal)
 
-% UIWAIT makes brainography_nemo_lite wait for user response (see UIRESUME)
-% uiwait(handles.figure1);
+atlassize = popVal(1).numberROI;
 
+if atlassize == 86
+    set(H.radiobutton1,'Value',1);
+    set(H.radiobutton2,'Value',0);
+else
+    set(H.radiobutton1,'Value',0);
+    set(H.radiobutton2,'Value',1);
+end
+
+set(H.pushbutton14,'BackgroundColor',popVal.singleColor);
+
+if popVal(1).singleColorFlag
+    enableGlassBrainOpts(atlassize);
+    set(H.radiobutton3,'Value',1);
+    set(H.radiobutton4,'Value',0);
+    set(H.popupmenu4,'Value',popVal(1).nodeStyle); % Choice of statistic EF/EC/etc
+else
+    set(H.radiobutton3,'Value',0);
+    set(H.radiobutton4,'Value',1); %Gummi option
+    enableGummiBrainOpts(atlassize);
+end
+
+set(H.popupmenu6,'Value',popVal(2).custom_colormap); % hemisphere
+set(H.popupmenu5,'Value',popVal(2).nodeSchema); % Lobe schema menu
+set(H.popupmenu3,'Value',popVal(1).brain_colormapidx); % Gummi colormap option
+
+set(H.pushbutton14,'BackgroundColor',popVal(1).singleColor);
+
+set(H.edit2,'String',popVal(1).figstr);
+set(H.checkbox2,'Value',popVal(2).saveImages);
+set(H.checkbox3,'Value',popVal(2).saveMovie);
 
 % --- Outputs from this function are returned to the command line.
 function varargout = brainography_nemo_lite_OutputFcn(hObject, eventdata, handles) 
@@ -103,110 +138,8 @@ disp(guihandles(hObject));
 disp(handles);
 % EXECUTE FULL-SCALE IMAGE GENERATION USING GUIDATA(1:end-1)
 figure;
+handles(1).nodeStyle = 1;
 BrainographyRender(handles,gca,2);
-
-function edit1_Callback(hObject, eventdata, handles)
-% hObject    handle to edit1 (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-
-% Hints: get(hObject,'String') returns contents of edit1 as text
-%        str2double(get(hObject,'String')) returns contents of edit1 as a double
-handles(handles(end).currentVol).opacity = str2num(get(hObject,'String'));
-guidata(hObject,handles);
-disp(get(hObject,'String'));
-
-% --- Executes during object creation, after setting all properties.
-function edit1_CreateFcn(hObject, eventdata, handles)
-% hObject    handle to edit1 (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    empty - handles not created until after all CreateFcns called
-
-% Hint: edit controls usually have a white background on Windows.
-%       See ISPC and COMPUTER.
-if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
-    set(hObject,'BackgroundColor','white');
-end
-
-
-% --- Executes on button press in pushbutton1.
-function pushbutton1_Callback(hObject, eventdata, handles)
-% hObject    handle to pushbutton1 (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-
-
-H=guihandles(hObject);
-volVal=get(H.popupmenu1,'Value');
-volString=get(H.popupmenu1,'String');
-
-if volVal ~= size(volString,1)  %add-volume option should always be last option in menu
-    % clear/delete popupmenu entry
-    volString(volVal)=[];
-    set(H.popupmenu1,'String',volString); %update popupmenu1
-    set(H.popupmenu1,'Value',1);
-    handles(volVal)=[]; % clear the removed vol from guidata/handles
-    guidata(hObject,handles);
-    if length(handles) == 1
-        defaultGUI(H);
-    else
-        populateGUI(H,handles(1))
-    end
-elseif length(handles) == 1
-    defaultGUI(H);    
-end
-
-% --- Executes on button press in pushbutton5.
-function pushbutton5_Callback(hObject, ~, handles) % Launch CM chooser
-% hObject    handle to pushbutton5 (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-waitfor(cm_choose(hObject));
-H = guihandles(hObject);
-handles = guidata(hObject);
-if ~isempty(handles(handles(end).currentVol).connectivityMatrix)
-    set(H.checkbox4,'Enable','On');
-    set(H.pushbutton10,'Enable','On');% How to get connectivity matrix back to this GUI? With handle?
-else
-    set(H.checkbox4,'Enable','Off');
-    set(H.pushbutton10,'Enable','Off');
-end
-
-% --- Executes on button press in checkbox1. Nodes on/off option
-function checkbox1_Callback(hObject, eventdata, handles)
-% hObject    handle to checkbox1 (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-
-% Hint: get(hObject,'Value') returns toggle state of checkbox1
-currentVol = handles(end).currentVol;
-H = guihandles(hObject);
-handles(currentVol).nodes=get(hObject, 'Value');
-nodeProps = handles(currentVol).nodeProps;
-
-if handles(currentVol).nodes
-    if isempty(nodeProps);
-        at = handles(currentVol).brain_at;
-        numberROI = unique(at(find(at~=0)));
-        nodeProps = cell(size(numberROI,1),3);
-        nodeProps(:,1) = num2cell(numberROI);
-        if ~isempty(handles(currentVol).connectivityMatrix)
-            nodeProps(:,2) = num2cell(sum(handles(currentVol).connectivityMatrix,2));
-        else
-            nodeProps(:,2) = num2cell(numberROI);
-        end
-        nodeProps(:,3) = num2cell(ones(size(numberROI)));
-        handles(currentVol).nodeProps = nodeProps;
-    end
-    if isempty(handles(currentVol).nodeSchema)
-        handles(currentVol).nodeSchema = rand(1,3);
-    end
-    set(H.pushbutton8,'Enable','On');
-else
-    set(H.pushbutton8,'Enable','Off');
-end
-guidata(hObject,handles);
-
 
 % --- Executes on button press in checkbox2.  Save Images Option
 function checkbox2_Callback(hObject, eventdata, handles)
@@ -228,37 +161,6 @@ function checkbox3_Callback(hObject, eventdata, handles)
 handles(end).saveMovie=get(hObject,'Value');
 guidata(hObject,handles);
 
-% --- Executes on button press in checkbox4.
-function checkbox4_Callback(hObject, eventdata, handles)
-% hObject    handle to checkbox4 (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-
-% Hint: get(hObject,'Value') returns toggle state of checkbox4
-currentVol = handles(end).currentVol;
-handles(currentVol).pipes=get(hObject,'Value');
-H = guihandles(hObject);
-
-if handles(currentVol).pipes
-    set(H.pushbutton10,'Enable','On');
-    pipeColorHyperCube = handles(currentVol).pipeColorHyperCube;
-    CM = handles(currentVol).connectivityMatrix;
-    numberROI = size(CM,1);
-    if isempty(pipeColorHyperCube) || numberROI ~= size(pipeColorHyperCube,1)
-        handles(currentVol).pipeScheme = 1;
-        pipeColorHyperCube = zeros(numberROI, numberROI, 3, 3);
-        tmp = zeros(numberROI, numberROI);
-        for i=1:3
-            tmp(:) = rand;
-            pipeColorHyperCube(:,:,i,1) = tmp;
-        end
-        handles(currentVol).pipeColorHyperCube = pipeColorHyperCube;
-    end
-else
-    set(H.pushbutton10,'Enable','Off');
-end
-guidata(hObject,handles);
-
 function resetMyAxes(H)
 ac = allchild(H.axes1);
 for i = 1:size(ac,1)
@@ -270,7 +172,6 @@ if get(H.checkbox5,'Value')
     set(H.checkbox5,'Value',0);
 end
 
-
 % --- Executes on button press in pushbutton7.
 function pushbutton7_Callback(hObject, eventdata, handles)
 % hObject    handle to pushbutton7 (see GCBO)
@@ -279,27 +180,15 @@ function pushbutton7_Callback(hObject, eventdata, handles)
 
 H = guihandles(hObject);
 handles(end).saveMovie = 0;
-handles(end).saveImage = 0;
+handles(end).saveImages = 0;
 %cla reset;
 resetMyAxes(H);
 
 if length(handles) > 1
+    handles(1).nodeStyle = 1;
     BrainographyRender(handles,H.axes1,3);
-    view([1 1 0]);
+%     view([1 1 0]);
 end
-
-function populateGUI(H, popVal)
-
-
-set(H.pushbutton14,'Value',popVal.singleColor);
-
-
-
-function defaultGUI(H)
-
-resetMyAxes(H);
-
-
 
 % --- Executes on button press in pushbutton11.
 function pushbutton11_Callback(hObject, eventdata, handles)
@@ -344,7 +233,9 @@ function edit2_Callback(hObject, eventdata, handles)
 
 % Hints: get(hObject,'String') returns contents of edit2 as text
 %        str2double(get(hObject,'String')) returns contents of edit2 as a double
-H = getappdata(handles.output,'renderStruct');
+handles(1).figstr = get(hObject, 'String');
+
+guidata(hObject,handles);
 
 
 
@@ -370,6 +261,9 @@ function pushbutton14_Callback(hObject, eventdata, handles)
 % handles    structure with handles and user data (see GUIDATA)
 V = uisetcolor(get(hObject,'BackgroundColor'));
 set(hObject,'BackgroundColor',V);
+handles(1).singleColor = V;
+guidata(hObject, handles);
+
 % 
 % currentVol = handles(end).currentVol;
 % handles(currentVol).singleColor = V;
@@ -388,6 +282,19 @@ function popupmenu3_Callback(hObject, eventdata, handles)
 
 % Hints: contents = cellstr(get(hObject,'String')) returns popupmenu3 contents as cell array
 %        contents{get(hObject,'Value')} returns selected item from popupmenu3
+H = guihandles(hObject);
+colorMapStr = get(H.popupmenu3,'String');
+colorMapIdx = get(H.popupmenu3,'Value');
+
+colorMapSel = colorMapStr{colorMapIdx};
+eval(['CMap = ' colorMapSel '(200);']);
+
+entriez = cell2mat(handles(1).regionvalues(:,2));
+entriezRGB = getRGBTriple(CMap, min(entriez), max(entriez), entriez);
+handles(1).regionvalues(:,3:5) = num2cell(entriezRGB);
+handles(1).brain_colormapidx = colorMapIdx;
+handles(1).brain_colormap = colorMapSel;
+guidata(hObject,handles);
 
 
 % --- Executes during object creation, after setting all properties.
@@ -411,6 +318,18 @@ function popupmenu4_Callback(hObject, eventdata, handles)
 
 % Hints: contents = cellstr(get(hObject,'String')) returns popupmenu4 contents as cell array
 %        contents{get(hObject,'Value')} returns selected item from popupmenu4
+H = guihandles(hObject);
+GB= get(H.radiobutton3,'Value');
+
+if GB
+    statChoice = get(H.popupmenu4,'Value');
+    stat = num2cell(handles(1).pipeColorHyperCube(statChoice,:)');
+    handles(1).nodeProps(:,2) = stat;
+    handles(1).nodeStyle = statChoice;
+    guidata(hObject, handles);
+end
+
+
 
 
 % --- Executes during object creation, after setting all properties.
@@ -437,7 +356,10 @@ function popupmenu5_Callback(hObject, eventdata, handles)
 schemaVal = get(handles.popupmenu5,'Value');
 schemaStr = get(handles.popupmenu5,'String');
 
-setLobeSchema(handles, schemaStr{schemaVal});
+nodeSchema = setLobeSchema(handles, schemaStr{schemaVal});
+handles(1).nodeSchema = nodeSchema;
+handles(2).nodeSchema = schemaVal;
+guidata(hObject,handles);
 % 
 % function setLobeSchema(schemaChoice)
 % H = getappdata(handles.output,'renderStruct');
@@ -472,87 +394,33 @@ function uipanel6_SelectionChangeFcn(hObject, eventdata, handles)
 %	OldValue: handle of the previously selected object or empty if none was selected
 %	NewValue: handle of the currently selected object
 % handles    structure with handles and user data (see GUIDATA)
-switch get(eventdata.NewValue,'Tag') % Get Tag of selected object.
+H = guihandles(hObject);
+switch get(eventdata.NewValue, 'Tag') % Get Tag of selected object.
     case 'radiobutton1' %86 regions
         % Code for when radiobutton1 is selected.
-        LobeStrings = {'Standard Lobes'; 'Functional 7-atlas'};
-        set(handles.popupmenu5,'Enable','On');
-        set(handles.popupmenu5,'Value',1);
-        set(handles.popupmenu5,'String',LobeStrings);
+        LobeStrings = {'Positive-Negative'; 'Standard Lobes'; 'Functional 7-atlas'};
+        set(handles.popupmenu5, 'Enable', 'On');
+        set(handles.popupmenu5, 'Value', 1);
+        set(handles.popupmenu5, 'String', LobeStrings);
+        setappdata(H.figure1, 'renderStruct116', handles);
+        handles = getappdata(H.figure1, 'renderStruct86');
+        populateGUI(H, handles);
+        guidata(hObject, handles);
     case 'radiobutton2'
         % Code for when radiobutton2 is selected.
-        set(handles.popupmenu5,'Value',1);
-        LobeStrings = {'Standard Lobes'};
-        set(handles.popupmenu5,'String',LobeStrings);
-        set(handles.popupmenu5,'Enable','Off');
+        set(handles.popupmenu5, 'Value', 1);
+        LobeStrings = {'Positive-Negative'; 'Standard Lobes'};
+        set(handles.popupmenu5, 'String', LobeStrings);
+        set(handles.popupmenu5, 'Enable', 'Off');
+        setappdata(H.figure1,'renderStruct86', handles);
+        handles = getappdata(H.figure1, 'renderStruct116');
+        populateGUI(H, handles);
+        guidata(hObject, handles);
     otherwise
         disp('Oh no.');
         % Code for when there is no match.
 end
 
-
-function lobesList = getLobes(lobeNum)
-switch lobeNum
-    case 116
-        % list of lobe regions
-        % 1 = frontal, 2 = parietal, 3 = occipital, 4 = temporal, 5 = subcortical,
-        % 6 = cerebellum
-        lobes = zeros(116,1);
-        lobes(1:28) = 1;
-        lobes([29:40, 71:78]) = 5;
-        lobes(43:54) = 3;
-        lobes([55:56, 79:90]) = 4;
-        lobes(57:70) = 2;
-        lobes(91:116) = 6;
-        % new mods in limbic system
-        lobes([29, 30]) = 1;  % insula
-        lobes([31, 32]) = 1;  % ant cing
-        lobes([33, 34]) = 1; % mid cing
-        lobes([35, 36]) = 2; % post cing
-        lobes([37, 38]) = 5; % hippo
-        lobes([39, 40]) = 4; % parahippo
-        lobes([41, 42]) = 4; % parahippo
-        lobesList = num2cell(lobes);
-        
-    case 86
-        lobeColors86 = zeros(1,86);
-        
-        % Frontal (blue)
-        a = [3 11 13 16 17 18 19 23 26 27 31];
-        lobeColors86(a) = 1;
-        lobeColors86(a + 34) = 1;
-        
-        % Parietal (magenta)
-        a =[7 21 24 28 30];
-        lobeColors86(a) = 2;
-        lobeColors86(a + 34) = 2;
-        
-        % Temporal (green)
-        a = [1 5 6 8 14 15 29 32 33];
-        lobeColors86(a) = 3;
-        lobeColors86(a + 34) = 3;
-        
-        % Occipital (red)
-        a = [4 10 12 20];
-        lobeColors86(a) = 4;
-        lobeColors86(a + 34) = 4;
-        
-        % Cingulate (cyan)
-        a = [2 9 22 25];
-        lobeColors86(a) = 5;
-        lobeColors86(a + 34) = 5;
-        
-        % Everywhere else (black)
-        ilobe = (lobeColors86 == 0);
-        lobeColors86(ilobe) = 6;
-        
-        lobesList = num2cell(lobeColors86');
-        
-    case 7
-        lobes = [2;4;6;1;5;1;7;5;7;1;5;1;5;7;1;2;4;7;7;1;2;4;2;7;7;6;7;3;2;4;5;5;2;4;7;4;7;1;5;1;7;5;7;1;5;1;5;7;7;2;4;7;7;1;2;7;2;7;7;6;7;3;2;4;5;5;2;4;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;];
-        lobes(find(lobes==0)) = 8;
-        lobesList = num2cell(lobes);
-end
 
 function nodeSchema = getNodeSchema(lobeChoice)
 if isequal(lobeChoice,'seven')
@@ -581,21 +449,50 @@ function uipanel7_SelectionChangeFcn(hObject, eventdata, handles)
 %	OldValue: handle of the previously selected object or empty if none was selected
 %	NewValue: handle of the currently selected object
 % handles    structure with handles and user data (see GUIDATA)
+H = guihandles(hObject);
+
 switch get(eventdata.NewValue,'Tag') % Get Tag of selected object.
     case 'radiobutton3'
-        % Code for when radiobutton3 is selected.
-        set(handles.popupmenu5,'Enable','On');
-        set(handles.pushbutton14,'Enable','On');
-        set(handles.popupmenu3,'Enable','Off');
+        % Code for when radiobutton3 is selected. 'Glass Brain'
+        enableGlassBrainOpts(atlassize, H);
+        handles(1).opacity = 0.08;
+        handles(1).singleColorFlag = 1;
     case 'radiobutton4'
-        % Code for when radiobutton4 is selected.
-        set(handles.popupmenu5,'Enable','Off');
-        set(handles.pushbutton14,'Enable','Off');
-        set(handles.popupmenu3,'Enable','On');
+        % Code for when radiobutton4 is selected. 'Gummi Brain'
+        enableGummiBrainOpts(atlassize, H);
+        handles(1).opacity = 1.0;
+        handles(1).singleColorFlag = 0;
     otherwise
         disp('Oh no.');
         % Code for when there is no match.
 end
+guidata(hObject, handles);
+
+function enableGlassBrainOpts(atlassize, H)
+
+set(H.popupmenu5,'Enable','On');
+
+set(H.pushbutton14,'Enable','On');
+
+set(H.popupmenu3,'Enable','Off');
+
+statOpts = {'Efficiency'; 'Betweenness Centrality'; 'Avg Shortest Path Length'; 'Modularity'; 'Eccentricity'; 'Clustering Coefficient'};
+set(H.popupmenu4,'String',statOpts);
+set(H.popupmenu4,'Value',1);
+% set
+
+
+function enableGummiBrainOpts(atlassize, H)
+
+set(H.popupmenu5,'Enable','Off'); %Node schema off
+
+set(H.pushbutton14,'Enable','Off');
+
+set(H.popupmenu3,'Enable','On'); %Colormap choice
+
+set(H.popupmenu4,'String',{'ChaCo Score'});
+set(H.popupmenu4,'Value',1);
+
 
 % --- Executes on selection change in popupmenu6.
 function popupmenu6_Callback(hObject, eventdata, handles)
@@ -604,8 +501,60 @@ function popupmenu6_Callback(hObject, eventdata, handles)
 % handles    structure with handles and user data (see GUIDATA)
 
 % Hints: contents = cellstr(get(hObject,'String')) returns popupmenu6 contents as cell array
-%        contents{get(hObject,'Value')} returns selected item from popupmenu6
+%        contents{get(hObject,'Value')} returns selected item from
+%        popupmenu6
+H = guihandles(hObject);
 
+atval = get(H.radiobutton1,'Value');
+if atval
+    atlassize = 86;
+else
+    atlassize = 116;
+end
+hemival = get(H.popupmenu6,'Value');
+
+switch hemival
+    case 1
+        hemidot = ones(atlassize,1);
+    case 2
+        hemidot = setHemiDot(atlassize,'left');
+    case 3
+        hemidot = setHemiDot(atlassize,'right');
+    case 4
+        hemidot = setHemiDot(atlassize,'subcort');
+end
+handles(1).custom_colormap = hemidot;
+handles(2).custom_colormap = hemival;
+guidata(hObject, handles);
+% setappdata(H.figure1, 'hemidot', hemidot);
+
+function hemidot = setHemiDot(atlassize,hemiSph)
+% left116 = 1:2:107;
+% right116 = 2:2:108;
+% subcort116 = find(setLobeSchema(116, 2) == 5);
+% left86 = [35:68 78:86];
+% right86  = [1:34 68:77];
+% subcort86 = find(setLobeSchema(86, 2) == 5);
+
+if atlassize == 86
+    if strcmp(hemiSph,'right')
+        nanidx = [35:68 78:86]; % left86
+    elseif strcmp(hemiSph, 'left')
+        nanidx = [1:34 69:77];
+    elseif strcmp(hemiSph, 'subcort')
+        nanidx =  find(setLobeSchema(86, 2) ~= 5);
+    end
+elseif atlassize ==116
+    if strcmp(hemiSph, 'right')
+        nanidx = [1:2:107 109:116];
+    elseif strcmp(hemiSph, 'left')
+        nanidx = [2:2:108 109:116];
+    elseif strcmp(hemiSph, 'subocrt')
+        nanidx = find(setLobeSchema(86, 2) ~= 5);
+    end
+end
+hemidot = ones(atlassize, 1);
+hemidot(nanidx) = nan;
 
 % --- Executes during object creation, after setting all properties.
 function popupmenu6_CreateFcn(hObject, eventdata, handles)

@@ -1,29 +1,70 @@
-function startupStruct = setChaCoScene(handles, fileIn)
+function [startupStruct, reschoice] = setChaCoScene(handles, fileIn)
 % 
 resultsFile = fileIn.ChaCoResultsFile;
 
-if size(resultsFile,1) == 1
-    set(handles.radiobutton1,'Enable','Off');
-    set(handles.radiobutton2,'Enable','Off');
-else
-    
+load(resultsFile,'ChaCoResults'); 
+[saveFolder, ~, ~] = fileparts(resultsFile);    
 
+atlassize = size(ChaCoResults(1).Regions,2);
+
+rescheck = [ 0 0 ]; %[ 86y/n 116y/n]
+
+% Check for parallel file
 switch atlassize
     case 86
-        set(handles.radiobutton1,'Value',1);
+        rescheck(1) = 1;
+        parallelcase = [saveFolder filesep 'ChaCo116_MNI.mat'];
+        set(handles.radiobutton1, 'Value', 1);
     case 116
-        set(handles.radiobutton2,'Value',1);
+        rescheck(2) = 1;
+        parallelcase = [saveFolder filesep 'ChaCo86_MNI.mat'];
+        set(handles.radiobutton2, 'Value', 1);
 end
 
-for i = 1:length(ChaCoResults)
-newStruct = [newRenderStruct newRenderStruct];
-
-if plotOutputOptions.SurfPlot.flag
-    newStruct(1).opacity = 1;
-elseif plotOutputOptions.GBPlot.flag
-    newStruct(1).opacity = 0.08;
+% Modify GUI
+if exist(parallelcase, 'file')
+    rescheck = [1 1];
+    set(handles.radiobutton1, 'Enable', 'On');
+    set(handles.radiobutton2, 'Enable', 'On');
+else
+    set(handles.radiobutton1, 'Enable', 'Off');
+    set(handles.radiobutton2, 'Enable', 'Off');
 end
 
+% Create renderStructs
+newStruct = importChaCoStruct(handles, ChaCoResults(1), fileIn.PlotOutputOptions);
+
+set(handles.popupmenu6, 'Value', 1);
+
+if length(find(rescheck)) == 2
+    load(parallelcase, 'ChaCoResults');
+    parallelStruct = importChaCoStruct(handles, ChaCoResults(1), fileIn.PlotOutputOptions);
+    if atlassize == 86
+        reschoice = 1;
+        startupStruct = [newStruct; parallelStruct];
+    else
+        reschoice = 2;
+        startupStruct = [parallelStruct; newStruct];
+    end
+end
+
+set(handles.pushbutton14,'BackgroundColor',newStruct(1).singleColor);
+% 
+% 
+% % Set image properties
+% 
+% if plotOutputOptions.SurfPlot.flag
+%     newStruct(1).opacity = 1;
+% elseif plotOutputOptions.GBPlot.flag
+%     newStruct(1).opacity = 0.08;
+% end
+% 
+% 
+% % Set render settings
+% 
+% 
+% 
+% 
 
 % plotOutputOptions.SurfPlot.flag = 0;
 % plotOutputOptions.SurfPlot.PlotHemi = 'left';
